@@ -1,0 +1,155 @@
+// TAPAM CARD — Prisma schema (MariaDB)
+// Core model: User owns a Card (physical support) and a Profile (public identity).
+// The Card is an immutable access point; the Profile is the living content behind it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql" // MariaDB is wire-compatible with the mysql provider
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN // reserved for future granular permissions, not used in MVP logic
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum CardType {
+  EXPRESS
+  CUSTOM
+  BUSINESS // reserved for future use, not developed in MVP
+}
+
+enum CardStatus {
+  PENDING // created, not yet activated by the client
+  ACTIVE // usable, public profile reachable
+  SUSPENDED // temporarily disabled by admin
+  INACTIVE // permanently disabled
+}
+
+// ---------------------------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------------------------
+
+model User {
+  id                 String     @id @default(cuid())
+  username           String     @unique
+  passwordHash       String
+  email              String?    @unique
+  phone              String?
+  role               Role       @default(USER)
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(true)
+
+  cards   Card[]
+  profile Profile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Card {
+  id          String     @id @default(cuid())
+  cardNumber  String     @unique // e.g. TPM-000125
+  slug        String     @unique // e.g. tpm-000125
+  type        CardType   @default(EXPRESS)
+  status      CardStatus @default(PENDING)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  publicUrl String // full public URL, derived from APP_URL + slug at creation time
+
+  activatedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  views CardView[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Profile {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName String?
+  lastName  String?
+  photo     String?
+  jobTitle  String?
+  company   String?
+  bio       String?
+
+  phone     String?
+  whatsapp  String?
+  email     String?
+  website   String?
+
+  linkedin  String?
+  facebook  String?
+  instagram String?
+  tiktok    String?
+
+  location  String?
+
+  isIndexable Boolean @default(true) // SEO opt-out, prepared for future
+
+  services Service[]
+
+  designId String?
+  design   Design?  @relation(fields: [designId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id          String  @id @default(cuid())
+  profileId   String
+  profile     Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  position    Int     @default(0)
+
+  @@index([profileId])
+}
+
+model Design {
+  id            String  @id @default(cuid())
+  name          String
+  slug          String  @unique
+  previewImage  String?
+  isActive      Boolean @default(true)
+
+  profiles Profile[]
+}
+
+model CardView {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  userAgent String?
+  referrer  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+}
