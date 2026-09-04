@@ -1,38 +1,28 @@
-import type { Config } from 'tailwindcss';
+import type { Config } from 'tailwindcss'
 
-// Palette TAPAM CARD inspirée du logo : Gold premium sur fond Noir/Blanc/Gris.
 const config: Config = {
   content: [
-    './src/pages/**/*.{ts,tsx}',
-    './src/components/**/*.{ts,tsx}',
-    './src/app/**/*.{ts,tsx}'
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        tapam: {
-          gold: '#D4AF37',
-          goldLight: '#F1D97A',
-          goldDark: '#9C7A1E',
-          black: '#0B0B0C',
-          charcoal: '#1A1A1D',
-          silver: '#C7C9CC',
-          silverLight: '#EDEDEF',
-          white: '#FFFFFF'
-        }
+        gold: {
+          50: '#fffbf0',
+          100: '#fef3e0',
+          200: '#fce3c1',
+          300: '#f9d09a',
+          400: '#f5b873',
+          500: '#d4af37',
+          600: '#b8941d',
+          700: '#9c7a15',
+          800: '#7a5f0f',
+          900: '#5a4608',
+        },
       },
-      backgroundImage: {
-        'gold-gradient': 'linear-gradient(135deg, #F1D97A 0%, #D4AF37 50%, #9C7A1E 100%)'
-      },
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif']
-      },
-      borderRadius: {
-        xl2: '1.25rem'
-      }
-    }
+    },
   },
-  plugins: []
-};
-
-export default config;
+  plugins: [],
+}
+export default config
