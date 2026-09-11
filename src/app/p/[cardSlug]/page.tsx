@@ -1,5 +1,130 @@
-import {notFound} from "next/navigation";import type {Metadata} from "next";import {prisma} from "@/lib/prisma";import {toVCard} from "@/lib/vcard";
-export const dynamic = "force-dynamic";
-export async function generateMetadata({params}:{params:Promise<{cardSlug:string}>}):Promise<Metadata> { const {cardSlug}=await params; const card=await prisma.card.findUnique({where:{slug:cardSlug},include:{user:{include:{profile:true}}}}); const p=card?.user.profile; return {title:p?.firstName ? `${p.firstName} ${p.lastName || ""} — ${p.jobTitle || "Professionnel"} | TAPAM CARD` : "TAPAM CARD",description:p?.bio || "Profil professionnel TAPAM CARD"}; }
-export default async function PublicProfile({params}:{params:Promise<{cardSlug:string}>}){const {cardSlug}=await params;const card=await prisma.card.findUnique({where:{slug:cardSlug},include:{user:{include:{profile:{include:{services:{orderBy:{position:"asc"}},gallery:{orderBy:{position:"asc"}}}}}}}});if(!card)notFound();if(card.status!=="ACTIVE")return <State title="Cette carte est en pause" text="Le propriétaire l’a temporairement désactivée."/>;const p=card.user.profile;if(!p?.isPublished||!p.firstName)return <State title="Cette carte TAPAM est prête." text="Son propriétaire termine actuellement la configuration de son profil."/>;await prisma.cardView.create({data:{cardId:card.id}});const vcf=encodeURIComponent(toVCard(p));const theme=p.design==="AURA"?"from-[#321f2b] via-[#171117] to-[#090a0c]":p.design==="STUDIO"?"from-[#15202e] via-[#11141b] to-[#08090b]":"from-[#282313] via-[#121317] to-[#08090b]";const links=[["◉","Site",p.website],["in","LinkedIn",p.linkedin],["f","Facebook",p.facebook],["𝕏","X",p.xUrl],["◎","Instagram",p.instagram],["♪","TikTok",p.tiktok]].filter(([, ,url])=>url) as [string,string,string][];return <main className={`min-h-screen bg-gradient-to-b ${theme} p-4 text-white`}><section className="mx-auto max-w-lg pb-10 pt-6"><div className="glass float rounded-[30px] p-6 text-center"><div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[26px] border border-white/20 bg-gradient-to-br from-gold to-[#6e4e05] text-3xl font-black text-black">{p.photo?<img src={p.photo} alt={`${p.firstName} ${p.lastName||""}`} className="h-full w-full object-cover"/>:`${p.firstName[0]}${p.lastName?.[0]||""}`}</div><p className="eyebrow mt-5"></p><h1 className="mt-2 text-3xl font-black">{p.firstName} {p.lastName}</h1><p className="gold mt-2 font-bold">{p.jobTitle}</p>{p.company&&<p className="mt-1 text-sm text-zinc-300">{p.company}</p>}{p.bio&&<><p className="mt-6 leading-relaxed text-zinc-200">{p.bio}</p><a className="btn btn-gold pulse-gold mt-6 w-full" download="tapam-contact.vcf" href={`data:text/vcard;charset=utf-8,${vcf}`}>＋ Enregistrer le contact</a></>}<div className="mt-5 grid grid-cols-3 gap-2">{p.phone&&<a className="btn btn-soft px-2 text-xs" href={`tel:${p.phone}`}>☎ Appeler</a>}{p.whatsapp&&<a className="btn btn-soft px-2 text-xs" href={`https://wa.me/${p.whatsapp.replace(/\D/g,"")}`}>◔ WhatsApp</a>}{p.email&&<a className="btn btn-soft px-2 text-xs" href={`mailto:${p.email}`}>✉ Email</a>}</div></div>{p.services.length>0&&p.showServices&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Ce que je propose</h2><div className="mt-4 flex flex-wrap gap-2">{p.services.map(s=><span className="rounded-full border border-gold/25 bg-gold/10 px-3 py-2 text-sm" key={s.id}>{s.name}</span>)}</div></section>}{p.gallery.length>0&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Réalisations</h2><div className="mt-4 grid grid-cols-2 gap-3">{p.gallery.map(item=><img key={item.id} src={item.image} className="aspect-square rounded-2xl object-cover transition hover:scale-[1.03]" alt="Réalisation"/>)}</div></section>}{links.length>0&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Me retrouver</h2><div className="mt-4 grid grid-cols-3 gap-3">{links.map(([icon,name,url])=><a className="rounded-2xl bg-white/8 p-3 text-center text-sm font-bold transition hover:bg-white/15" href={url} target="_blank" rel="noreferrer" key={name}><span className="gold block text-lg">{icon}</span>{name}</a>)}</div></section>}<p className="mt-7 text-center text-xs text-zinc-500">Propulsé par <span className="gold">TAPAM</span></p></section></main>}
-function State({title,text}:{title:string;text:string}) { return <main className="flex min-h-screen items-center justify-center p-5"><div className="card max-w-md p-8 text-center"><p className="font-black tracking-widest text-gold">TAPAM CARD</p><h1 className="mt-5 text-2xl font-black">{title}</h1><p className="muted mt-3">{text}</p></div></main>; }
+'use client';
+
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { useParams } from 'next/navigation';
+import { Share2, Heart } from 'lucide-react';
+import { ProfileCard } from '@/components/ProfileCard';
+import { SocialLinks } from '@/components/SocialLinks';
+import prisma from '@/lib/prisma';
+
+interface Profile {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  title: string;
+  subtitle: string;
+  bio: string;
+  email: string;
+  phone: string;
+  website: string;
+  profileImage: string;
+  cardSlug: string;
+  linkedin: string;
+  facebook: string;
+  instagram: string;
+  twitter: string;
+  tiktok: string;
+  snapchat: string;
+  youtube: string;
+  whatsapp: string;
+  customButtons: Array<{
+    id: string;
+    label: string;
+    url: string;
+    order: number;
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export default function CardPage() {
+  const params = useParams();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const cardSlug = params.cardSlug as string;
+        const response = await fetch(`/api/cards/${cardSlug}`);
+        
+        if (!response.ok) {
+          throw new Error('Profile not found');
+        }
+
+        const data = await response.json();
+        setProfile(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [params.cardSlug]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white">Chargement...</div>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white text-center">
+          <h1 className="text-2xl font-bold mb-2">Card not found</h1>
+          <p className="text-slate-400">{error || 'The profile you are looking for does not exist'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      <div className="max-w-md mx-auto p-4 pt-8">
+        {/* Header avec logo TAPAM CARD */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className="text-3xl font-bold text-white tracking-wide">TAPAM</span>
+            <div className="w-6 h-6 bg-yellow-400 rounded-full"></div>
+          </div>
+          <p className="text-slate-300 text-sm italic">CARD</p>
+        </div>
+
+        {/* Card principale */}
+        <ProfileCard profile={profile} />
+
+        {/* Boutons personnalisés */}
+        {profile.customButtons && profile.customButtons.length > 0 && (
+          <div className="mt-6 space-y-3">
+            {profile.customButtons
+              .sort((a, b) => a.order - b.order)
+              .map((button) => (
+                <a
+                  key={button.id}
+                  href={button.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-3 px-4 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-lg transition text-center"
+                >
+                  {button.label}
+                </a>
+              ))}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-slate-400 text-xs">
+          <p>© 2024 TAPAM Card. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
