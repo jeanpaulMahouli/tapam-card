@@ -1,80 +1,116 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-  profile Profile?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
 
-  @@map("users")
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CardType {
+  EXPRESS
+  CUSTOM
+  BUSINESS
+}
+
+enum CardStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum DesignTemplate {
+  SIGNATURE
+  STUDIO
+  AURA
+}
+
+model User {
+  id                String    @id @default(cuid())
+  username          String    @unique
+  email             String?   @unique
+  phone             String?
+  passwordHash      String
+  role              Role      @default(USER)
+  status            UserStatus @default(ACTIVE)
+  mustChangePassword Boolean  @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  profile           Profile?
+  cards             Card[]
 }
 
 model Profile {
-  id                String     @id @default(cuid())
-  userId            Int        @unique
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Basic info
-  firstName         String
-  lastName          String
-  title             String?
-  subtitle          String?
-  bio               String?
-  profileImage      String?
-  
-  // Contact info
-  email             String?
-  phone             String?
-  website           String?
-  
-  // Social media
-  linkedin          String?
-  facebook          String?
-  instagram         String?
-  twitter           String?
-  tiktok            String?
-  snapchat          String?
-  whatsapp          String?
-  youtube           String?
-  
-  // Custom buttons
-  customButtons     CustomButton[]
-  
-  // Display settings
-  theme             String?     @default("light")
-  cardColor         String?
-  textColor         String?
-  
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName     String?
+  lastName      String?
+  title         String?
+  subtitle      String?
+  bio           String?  @db.Text
+  profileImage  String?
+  coverImage    String?
+  services      Service[]
+  customButtons CustomButton[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
 
-  @@map("profiles")
+model Card {
+  id          String     @id @default(cuid())
+  cardNumber  String     @unique
+  slug        String     @unique
+  type        CardType
+  status      CardStatus @default(PENDING)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activatedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Service {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  description String? @db.Text
+  position  Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CustomButton {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   profileId String
-  profile   Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  
-  label     String     // "Explorer mon site web", "Prendre RDV", etc.
-  url       String     // Link destination
-  order     Int        @default(0) // For ordering buttons
-  
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  label     String
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
 
-  @@map("custom_buttons")
-  @@index([profileId])
+model Design {
+  id           String  @id @default(cuid())
+  name         String
+  slug         String  @unique
+  previewImage String?
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
