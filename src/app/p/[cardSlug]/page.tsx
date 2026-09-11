@@ -1,5 +1,160 @@
-import {notFound} from "next/navigation";import type {Metadata} from "next";import {prisma} from "@/lib/prisma";import {toVCard} from "@/lib/vcard";
-export const dynamic = "force-dynamic";
-export async function generateMetadata({params}:{params:Promise<{cardSlug:string}>}):Promise<Metadata> { const {cardSlug}=await params; const card=await prisma.card.findUnique({where:{slug:cardSlug},include:{user:{include:{profile:true}}}}); const p=card?.user.profile; return {title:p?.firstName ? `${p.firstName} ${p.lastName || ""} — ${p.jobTitle || "Professionnel"} | TAPAM CARD` : "TAPAM CARD",description:p?.bio || "Profil professionnel TAPAM CARD"}; }
-export default async function PublicProfile({params}:{params:Promise<{cardSlug:string}>}){const {cardSlug}=await params;const card=await prisma.card.findUnique({where:{slug:cardSlug},include:{user:{include:{profile:{include:{services:{orderBy:{position:"asc"}},gallery:{orderBy:{position:"asc"}}}}}}}});if(!card)notFound();if(card.status!=="ACTIVE")return <State title="Cette carte est en pause" text="Le propriétaire l’a temporairement désactivée."/>;const p=card.user.profile;if(!p?.isPublished||!p.firstName)return <State title="Cette carte TAPAM est prête." text="Son propriétaire termine actuellement la configuration de son profil."/>;await prisma.cardView.create({data:{cardId:card.id}});const vcf=encodeURIComponent(toVCard(p));const theme=p.design==="AURA"?"from-[#321f2b] via-[#171117] to-[#090a0c]":p.design==="STUDIO"?"from-[#15202e] via-[#11141b] to-[#08090b]":"from-[#282313] via-[#121317] to-[#08090b]";const links=[["◉","Site",p.website],["in","LinkedIn",p.linkedin],["f","Facebook",p.facebook],["𝕏","X",p.xUrl],["◎","Instagram",p.instagram],["♪","TikTok",p.tiktok]].filter(([, ,url])=>url) as [string,string,string][];return <main className={`min-h-screen bg-gradient-to-b ${theme} p-4 text-white`}><section className="mx-auto max-w-lg pb-10 pt-6"><div className="glass float rounded-[30px] p-6 text-center"><div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[26px] border border-white/20 bg-gradient-to-br from-gold to-[#6e4e05] text-3xl font-black text-black">{p.photo?<img src={p.photo} alt={`${p.firstName} ${p.lastName||""}`} className="h-full w-full object-cover"/>:`${p.firstName[0]}${p.lastName?.[0]||""}`}</div><p className="eyebrow mt-5"></p><h1 className="mt-2 text-3xl font-black">{p.firstName} {p.lastName}</h1><p className="gold mt-2 font-bold">{p.jobTitle}</p>{p.company&&<p className="mt-1 text-sm text-zinc-300">{p.company}</p>}{p.bio&&<><p className="mt-6 leading-relaxed text-zinc-200">{p.bio}</p><a className="btn btn-gold pulse-gold mt-6 w-full" download="tapam-contact.vcf" href={`data:text/vcard;charset=utf-8,${vcf}`}>＋ Enregistrer le contact</a></>}<div className="mt-5 grid grid-cols-3 gap-2">{p.phone&&<a className="btn btn-soft px-2 text-xs" href={`tel:${p.phone}`}>☎ Appeler</a>}{p.whatsapp&&<a className="btn btn-soft px-2 text-xs" href={`https://wa.me/${p.whatsapp.replace(/\D/g,"")}`}>◔ WhatsApp</a>}{p.email&&<a className="btn btn-soft px-2 text-xs" href={`mailto:${p.email}`}>✉ Email</a>}</div></div>{p.services.length>0&&p.showServices&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Ce que je propose</h2><div className="mt-4 flex flex-wrap gap-2">{p.services.map(s=><span className="rounded-full border border-gold/25 bg-gold/10 px-3 py-2 text-sm" key={s.id}>{s.name}</span>)}</div></section>}{p.gallery.length>0&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Réalisations</h2><div className="mt-4 grid grid-cols-2 gap-3">{p.gallery.map(item=><img key={item.id} src={item.image} className="aspect-square rounded-2xl object-cover transition hover:scale-[1.03]" alt="Réalisation"/>)}</div></section>}{links.length>0&&<section className="glass mt-5 rounded-3xl p-5"><h2 className="font-black">Me retrouver</h2><div className="mt-4 grid grid-cols-3 gap-3">{links.map(([icon,name,url])=><a className="rounded-2xl bg-white/8 p-3 text-center text-sm font-bold transition hover:bg-white/15" href={url} target="_blank" rel="noreferrer" key={name}><span className="gold block text-lg">{icon}</span>{name}</a>)}</div></section>}<p className="mt-7 text-center text-xs text-zinc-500">Propulsé par <span className="gold">TAPAM</span></p></section></main>}
-function State({title,text}:{title:string;text:string}) { return <main className="flex min-h-screen items-center justify-center p-5"><div className="card max-w-md p-8 text-center"><p className="font-black tracking-widest text-gold">TAPAM CARD</p><h1 className="mt-5 text-2xl font-black">{title}</h1><p className="muted mt-3">{text}</p></div></main>; }
+"use client";
+
+import Image from "next/image";
+import { useState, useEffect } from "react";
+import { Card, Profile } from "@/generated/prisma";
+import { SocialLinks } from "@/components/SocialLinks";
+
+interface CardPageProps {
+  params: {
+    cardSlug: string;
+  };
+}
+
+interface CardData {
+  card: Card & { user: { profile: Profile } };
+}
+
+export default function CardPage({ params }: CardPageProps) {
+  const [data, setData] = useState<CardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCard = async () => {
+      try {
+        const response = await fetch(`/api/cards/${params.cardSlug}`);
+        if (!response.ok) {
+          throw new Error("Carte non trouvée");
+        }
+        const cardData = await response.json();
+        setData(cardData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur lors du chargement");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCard();
+  }, [params.cardSlug]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Chargement...</div>;
+  }
+
+  if (error || !data) {
+    return <div className="flex items-center justify-center min-h-screen text-red-600">{error || "Erreur"}</div>;
+  }
+
+  const { card, user } = data.card;
+  const profile = user.profile;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+          {/* Photo de profil */}
+          {profile?.photo && (
+            <div className="relative w-full h-64 bg-gray-200 dark:bg-gray-700">
+              <Image
+                src={profile.photo}
+                alt={`${profile.firstName} ${profile.lastName}`}
+                fill
+                className="object-cover"
+                priority
+              />
+            </div>
+          )}
+
+          {/* Contenu */}
+          <div className="p-8">
+            {/* Nom et titre */}
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {profile?.firstName} {profile?.lastName}
+            </h1>
+            {profile?.jobTitle && (
+              <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">{profile.jobTitle}</p>
+            )}
+            {profile?.company && (
+              <p className="text-md text-gray-500 dark:text-gray-400">{profile.company}</p>
+            )}
+
+            {/* Bio */}
+            {profile?.bio && (
+              <p className="text-gray-700 dark:text-gray-300 mt-4 leading-relaxed">{profile.bio}</p>
+            )}
+
+            {/* Réseaux sociaux */}
+            <div className="mt-8">
+              <SocialLinks
+                linkedin={profile?.linkedin || null}
+                facebook={profile?.facebook || null}
+                instagram={profile?.instagram || null}
+                tiktok={profile?.tiktok || null}
+                xUrl={profile?.xUrl || null}
+                email={profile?.email || null}
+                phone={profile?.phone || null}
+                whatsapp={profile?.whatsapp || null}
+                website={profile?.website || null}
+              />
+            </div>
+
+            {/* Services */}
+            {profile?.showServices && (
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Services</h2>
+                <div className="space-y-4">
+                  {profile.services && profile.services.length > 0 ? (
+                    profile.services.map((service) => (
+                      <div key={service.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{service.name}</h3>
+                        {service.description && (
+                          <p className="text-gray-600 dark:text-gray-300 text-sm mt-2">
+                            {service.description}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 dark:text-gray-400">Aucun service disponible</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Galerie */}
+            {profile?.gallery && profile.gallery.length > 0 && (
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Galerie</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {profile.gallery.map((item) => (
+                    <div key={item.id} className="relative w-full h-40 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
+                      <Image
+                        src={item.image}
+                        alt={item.caption || "Galerie"}
+                        fill
+                        className="object-cover"
+                      />
+                      {item.caption && (
+                        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-70 transition-all flex items-end p-3">
+                          <p className="text-white text-sm">{item.caption}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Info carte */}
+            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
+              <p>Carte: {card.cardNumber}</p>
+              <p>Créée le {new Date(card.createdAt).toLocaleDateString("fr-FR")}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
