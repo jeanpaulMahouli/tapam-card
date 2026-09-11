@@ -1,0 +1,1 @@
+export default function ForgotPassword(){return <main className="mx-auto max-w-md p-6 pt-24"><div className="card p-7"><h1 className="text-2xl font-black">Mot de passe oublié</h1><p className="muted mt-3">La récupération par email ou SMS sera branchée avant mise en production. Contactez TAPAM en attendant.</p></div></main>}

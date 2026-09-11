@@ -1,0 +1,2 @@
+import Link from "next/link";
+export function SiteHeader(){return <header className="shell relative z-10 flex items-center justify-between py-5"><Link href="/" className="flex items-center"><img src="/images/tapam-logo.png" alt="TAPAM CARD" className="h-10 w-auto object-contain"/></Link><nav className="flex items-center gap-4 text-sm font-bold text-zinc-300"><Link className="hidden sm:block hover:text-white" href="/cards">Boutique</Link><Link className="btn btn-soft min-h-10 px-4 text-xs" href="/login">Espace membre</Link></nav></header>}

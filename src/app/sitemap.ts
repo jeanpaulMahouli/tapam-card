@@ -1,0 +1,1 @@
+import type { MetadataRoute } from "next";import { appUrl } from "@/lib/env";export default function sitemap():MetadataRoute.Sitemap{return ["","/cards","/login"].map(path=>({url:`${appUrl}${path}`,lastModified:new Date()}))}

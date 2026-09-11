@@ -1,0 +1,2 @@
+import { describe, expect, it } from "vitest"; import bcrypt from "bcryptjs"; import { createTemporaryPassword, numberToCardNumber } from "@/services/card-provisioning.service";
+describe("provisionnement",()=>{it("génère un numéro TAPAM unique et formaté",()=>expect(numberToCardNumber(125)).toBe("TPM-000125"));it("génère un mot de passe aléatoire hashable",async()=>{const p=createTemporaryPassword();expect(p).toHaveLength(10);expect(await bcrypt.compare(p,await bcrypt.hash(p,12))).toBe(true)})});

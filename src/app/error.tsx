@@ -1,0 +1,1 @@
+"use client"; export default function Error(){return <main className="flex min-h-screen items-center justify-center p-5"><div className="card max-w-md p-7 text-center"><h1 className="text-2xl font-black">Une erreur est survenue</h1><p className="muted mt-3">Veuillez réessayer dans un instant.</p></div></main>}

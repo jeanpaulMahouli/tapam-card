@@ -1,0 +1,1 @@
+export default function NotFound(){return <main className="flex min-h-screen items-center justify-center p-5"><div className="text-center"><p className="font-black tracking-widest text-gold">TAPAM CARD</p><h1 className="mt-3 text-3xl font-black">Page introuvable</h1></div></main>}

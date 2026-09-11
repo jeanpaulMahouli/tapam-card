@@ -1,0 +1,1 @@
+import { describe,it,expect } from "vitest";import QRCode from "qrcode";describe("QR code",()=>it("encode uniquement l'URL publique",async()=>{const url="https://tapam.card/p/tpm-000001";const data=await QRCode.toDataURL(url);expect(data.startsWith("data:image/png;base64,")).toBe(true)}));

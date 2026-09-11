@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CardType {
+  EXPRESS
+  CUSTOM
+  BUSINESS
+}
+
+enum CardStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum DesignTemplate {
+  SIGNATURE
+  STUDIO
+  AURA
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  username           String     @unique
+  passwordHash       String
+  email              String?    @unique
+  phone              String?    @unique
+  role               Role       @default(USER)
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(true)
+
+  profile Profile?
+  cards   Card[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Card {
+  id          String     @id @default(cuid())
+  cardNumber  String     @unique
+  slug        String     @unique
+  type        CardType
+  status      CardStatus @default(ACTIVE)
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  activatedAt DateTime?
+
+  views CardView[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  firstName String?
+  lastName  String?
+  photo     String?
+  jobTitle  String?
+  company   String?
+  bio       String? @db.Text
+
+  phone    String?
+  whatsapp String?
+  email    String?
+  website  String?
+
+  linkedin  String?
+  facebook  String?
+  xUrl      String?
+  instagram String?
+  tiktok    String?
+  location  String?
+
+  design       DesignTemplate @default(SIGNATURE)
+  showServices Boolean        @default(true)
+  isPublished  Boolean        @default(false)
+
+  services Service[]
+  gallery  GalleryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String? @db.Text
+  position    Int     @default(0)
+}
+
+model Design {
+  id           String  @id @default(cuid())
+  name         String
+  slug         String  @unique
+  previewImage String?
+  isActive     Boolean @default(true)
+}
+
+model GalleryItem {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  image     String
+  caption   String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model CardView {
+  id     String @id @default(cuid())
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  userAgent String?  @db.Text
+  referrer  String?  @db.Text
+}

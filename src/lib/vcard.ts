@@ -1,0 +1,3 @@
+type Contact = { firstName?: string | null; lastName?: string | null; company?: string | null; jobTitle?: string | null; phone?: string | null; email?: string | null; website?: string | null };
+const clean = (value?: string | null) => value?.replace(/[\n;,]/g, " ") || "";
+export function toVCard(contact: Contact) { return ["BEGIN:VCARD","VERSION:3.0",`N:${clean(contact.lastName)};${clean(contact.firstName)};;;`,`FN:${clean(`${contact.firstName || ""} ${contact.lastName || ""}`.trim())}`,`ORG:${clean(contact.company)}`,`TITLE:${clean(contact.jobTitle)}`, contact.phone && `TEL;TYPE=CELL:${clean(contact.phone)}`, contact.email && `EMAIL:${clean(contact.email)}`, contact.website && `URL:${clean(contact.website)}`,"END:VCARD"].filter(Boolean).join("\r\n"); }

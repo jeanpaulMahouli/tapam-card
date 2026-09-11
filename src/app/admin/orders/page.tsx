@@ -1,0 +1,1 @@
+export default function Orders(){return <main className="shell py-8"><h1 className="text-3xl font-black">Commandes</h1><p className="muted mt-3">Le MVP centralise les demandes de commande directement sur WhatsApp.</p></main>}
