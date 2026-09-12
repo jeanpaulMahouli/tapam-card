@@ -1,19 +1,14 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-// Fonction pour générer un ID aléatoire
-function generateId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
-
-// Fonction pour générer un numéro de carte aléatoire (ex: TPMPH9WY9B7B)
-function generateCardNumber() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = 'TPM';
-  for (let i = 0; i < 10; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+// Fonction pour générer un numéro de carte aléatoire
+function generateCardNumber(): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 12; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
   }
   return result;
 }
@@ -22,164 +17,154 @@ async function main() {
   console.log('🌱 Démarrage du seed...');
 
   try {
-    // ============================================
-    // 1. Création de l'admin
-    // ============================================
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@exemple.cm' },
+    // Créer ou mettre à jour l'utilisateur admin
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@tapam-card.com' },
       update: {},
       create: {
-        email: 'admin@exemple.cm',
-        name: 'admin',
+        email: 'admin@tapam-card.com',
+        name: 'Admin',
         password: await bcrypt.hash('admin123', 10),
-        role: 'ADMIN',
-      },
-    });
-    console.log('✅ Admin créé: admin@exemple.cm');
-
-    // Créer un profil pour l'admin
-    await prisma.profile.upsert({
-      where: { userId: admin.id },
-      update: {},
-      create: {
-        userId: admin.id,
-        firstName: 'Administrateur',
-        lastName: 'TAPAM',
-        title: 'Admin System',
-        subtitle: 'Gestion des cartes digitales',
-        bio: 'Profil administrateur du système TAPAM Card',
-        profileImage: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
-        coverImage: 'https://images.unsplash.com/photo-1557821552-17105176677c?w=1200&h=400&fit=crop',
+        emailVerified: new Date(),
       },
     });
 
-    // Créer une carte pour l'admin
-    const adminCardNumber = 'TPMADMIN001';
-    await prisma.card.upsert({
-      where: { cardNumber: adminCardNumber },
-      update: {},
-      create: {
-        cardNumber: adminCardNumber,
-        slug: adminCardNumber.toLowerCase(),
-        type: 'BUSINESS',
-        status: 'ACTIVE',
-        designTemplate: 'SIGNATURE',
-        userId: admin.id,
-        activatedAt: new Date(),
-      },
-    });
-    console.log(`✅ Carte ADMIN créée: ${adminCardNumber}`);
+    console.log('✅ Admin créé:', adminUser.name);
 
-    // ============================================
-    // 2. Création de l'utilisateur de démonstration
-    // ============================================
-    const tempPassword = 'Demo12345!';
+    // Créer ou mettre à jour l'utilisateur démo
     const demoUser = await prisma.user.upsert({
-      where: { email: 'jean@exemple.cm' },
+      where: { email: 'demo@tapam-card.com' },
       update: {},
       create: {
-        email: 'jean@exemple.cm',
-        name: 'Jean Paul',
-        password: await bcrypt.hash(tempPassword, 10),
-        role: 'USER',
+        email: 'demo@tapam-card.com',
+        name: 'Demo User',
+        password: await bcrypt.hash('demo123', 10),
+        emailVerified: new Date(),
       },
     });
-    console.log('✅ Utilisateur démo créé: jean@exemple.cm');
 
-    // Créer un profil pour l'utilisateur démo
-    await prisma.profile.upsert({
+    console.log('✅ Utilisateur démo créé:', demoUser.name);
+
+    // Créer le profil pour l'admin
+    const adminProfile = await prisma.profile.upsert({
+      where: { userId: adminUser.id },
+      update: {},
+      create: {
+        userId: adminUser.id,
+        firstName: 'Jean',
+        lastName: 'Admin',
+        title: 'Administrateur',
+        subtitle: 'Gestion de Tapam Card',
+        bio: 'Bienvenue sur ma carte numérique professionnelle !',
+        email: 'admin@tapam-card.com',
+        phone: '+33612345678',
+        location: 'Paris, France',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+        coverUrl: 'https://images.unsplash.com/photo-1557821552-17105176677c?w=1200&h=400&fit=crop',
+      },
+    });
+
+    console.log('✅ Profil admin créé:', adminProfile.firstName, adminProfile.lastName);
+
+    // Créer le profil pour l'utilisateur démo
+    const demoProfile = await prisma.profile.upsert({
       where: { userId: demoUser.id },
       update: {},
       create: {
         userId: demoUser.id,
-        firstName: 'Jean',
-        lastName: 'Paul Mahouli',
-        title: 'Développeur Full Stack',
-        subtitle: 'Créateur de TAPAM Card',
-        bio: 'Passionné par la création de solutions digitales innovantes. Spécialisé en web et mobile development.',
-        profileImage: 'https://api.dicebear.com/7.x/avataaars/svg?seed=jean',
-        coverImage: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=400&fit=crop',
-        phone: '+237 123 456 789',
-        email: 'jean@exemple.cm',
+        firstName: 'Marie',
+        lastName: 'Developer',
+        title: 'Développeuse Web',
+        subtitle: 'Spécialiste React & Node.js',
+        bio: 'Passionnée par le développement web et les nouvelles technologies. Créative et toujours à la recherche de nouvelles solutions !',
+        email: 'marie@example.com',
+        phone: '+33698765432',
+        location: 'Lyon, France',
+        avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=marie',
+        coverUrl: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1200&h=400&fit=crop',
       },
     });
 
-    // ============================================
-    // 3. Création des cartes de démonstration
-    // ============================================
+    console.log('✅ Profil démo créé:', demoProfile.firstName, demoProfile.lastName);
 
-    // Carte EXPRESS
-    const expressCardNumber = generateCardNumber();
-    await prisma.card.create({
+    // Créer des cartes
+    const cards = [];
+
+    // Carte 1 - Admin EXPRESS
+    const card1 = await prisma.card.create({
       data: {
-        cardNumber: expressCardNumber,
-        slug: expressCardNumber.toLowerCase(),
-        type: 'EXPRESS',
-        status: 'ACTIVE',
-        designTemplate: 'SIGNATURE',
-        userId: demoUser.id,
-        activatedAt: new Date(),
+        userId: adminUser.id,
+        cardNumber: generateCardNumber(),
+        cardType: 'EXPRESS',
+        title: 'Admin Card',
+        isPublic: true,
       },
     });
-    console.log(`✅ Carte EXPRESS créée: ${expressCardNumber}`);
+    cards.push(card1);
+    console.log('✅ Carte 1 créée (EXPRESS):', card1.cardNumber);
 
-    // Carte BUSINESS
-    const businessCardNumber = generateCardNumber();
-    await prisma.card.create({
+    // Carte 2 - Demo BUSINESS
+    const card2 = await prisma.card.create({
       data: {
-        cardNumber: businessCardNumber,
-        slug: businessCardNumber.toLowerCase(),
-        type: 'BUSINESS',
-        status: 'ACTIVE',
-        designTemplate: 'SIGNATURE',
         userId: demoUser.id,
-        activatedAt: new Date(),
+        cardNumber: generateCardNumber(),
+        cardType: 'BUSINESS',
+        title: 'Professional Card',
+        isPublic: true,
       },
     });
-    console.log(`✅ Carte BUSINESS créée: ${businessCardNumber}`);
+    cards.push(card2);
+    console.log('✅ Carte 2 créée (BUSINESS):', card2.cardNumber);
 
-    // Carte CUSTOM
-    const customCardNumber = generateCardNumber();
-    await prisma.card.create({
+    // Carte 3 - Demo CUSTOM
+    const card3 = await prisma.card.create({
       data: {
-        cardNumber: customCardNumber,
-        slug: customCardNumber.toLowerCase(),
-        type: 'CUSTOM',
-        status: 'ACTIVE',
-        designTemplate: 'PREMIUM',
         userId: demoUser.id,
-        activatedAt: new Date(),
+        cardNumber: generateCardNumber(),
+        cardType: 'CUSTOM',
+        title: 'Creative Card',
+        isPublic: false,
       },
     });
-    console.log(`✅ Carte CUSTOM créée: ${customCardNumber}`);
+    cards.push(card3);
+    console.log('✅ Carte 3 créée (CUSTOM):', card3.cardNumber);
 
-    // ============================================
-    // 4. Résumé
-    // ============================================
-    console.log('\n🎉 Seed complété avec succès!');
-    console.log('\n📋 Résumé:');
-    console.log(`   📧 Admin: admin@exemple.cm`);
-    console.log(`   🔑 Mot de passe admin: admin123`);
-    console.log(`   📧 User démo: jean@exemple.cm`);
-    console.log(`   🔑 Mot de passe démo: ${tempPassword}`);
-    console.log(`   💳 Total cartes créées: 4 (1 admin + 3 démo)`);
-    console.log('\n🔗 URLs pour tester:');
-    console.log(`   🎯 Admin: http://localhost:3000/admin`);
-    console.log(`   🎯 Connexion: http://localhost:3000/login`);
-    console.log(`   🎯 Profil EXPRESS: http://localhost:3000/p/${expressCardNumber.toLowerCase()}`);
-    console.log(`   🎯 Profil BUSINESS: http://localhost:3000/p/${businessCardNumber.toLowerCase()}`);
-    console.log(`   🎯 Profil CUSTOM: http://localhost:3000/p/${customCardNumber.toLowerCase()}`);
+    // Créer des liens sociaux pour le profil démo
+    const socialLinks = await prisma.socialLink.createMany({
+      data: [
+        {
+          profileId: demoProfile.id,
+          platform: 'linkedin',
+          url: 'https://linkedin.com/in/mariedeveloper',
+        },
+        {
+          profileId: demoProfile.id,
+          platform: 'github',
+          url: 'https://github.com/mariedeveloper',
+        },
+        {
+          profileId: demoProfile.id,
+          platform: 'twitter',
+          url: 'https://twitter.com/mariedeveloper',
+        },
+      ],
+    });
+
+    console.log('✅ Liens sociaux créés:', socialLinks.count);
+
+    // Résumé
+    console.log('\n📊 === RÉSUMÉ DU SEED ===');
+    console.log(`👥 Utilisateurs créés: 2`);
+    console.log(`👤 Profils créés: 2`);
+    console.log(`💳 Cartes créées: ${cards.length}`);
+    console.log(`🔗 Liens sociaux créés: ${socialLinks.count}`);
+    console.log('\n🎉 Seed complété avec succès !');
   } catch (error) {
-    console.error('\n❌ Erreur lors du seed:', error);
-    throw error;
+    console.error('❌ Erreur lors du seed:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main();
