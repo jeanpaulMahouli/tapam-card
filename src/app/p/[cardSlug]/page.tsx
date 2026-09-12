@@ -1,130 +1,105 @@
-'use client';
+import React from 'react';
+import { Metadata } from 'next';
+import { db } from '@/lib/database';
+import { formatCardDisplay } from '@/lib/card-utils';
+import { ProfileCardDisplay } from '@/components/ProfileCardDisplay';
+import { redirect, notFound } from 'next/navigation';
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { useParams } from 'next/navigation';
-import { Share2, Heart } from 'lucide-react';
-import { ProfileCard } from '@/components/ProfileCard';
-import { SocialLinks } from '@/components/SocialLinks';
-import prisma from '@/lib/prisma';
-
-interface Profile {
-  id: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  title: string;
-  subtitle: string;
-  bio: string;
-  email: string;
-  phone: string;
-  website: string;
-  profileImage: string;
-  cardSlug: string;
-  linkedin: string;
-  facebook: string;
-  instagram: string;
-  twitter: string;
-  tiktok: string;
-  snapchat: string;
-  youtube: string;
-  whatsapp: string;
-  customButtons: Array<{
-    id: string;
-    label: string;
-    url: string;
-    order: number;
-  }>;
-  createdAt: Date;
-  updatedAt: Date;
+interface PageProps {
+  params: {
+    cardSlug: string;
+  };
 }
 
-export default function CardPage() {
-  const params = useParams();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Générer les métadonnées dynamiques pour SEO
+ */
+export async function generateMetadata(
+  { params }: PageProps
+): Promise<Metadata> {
+  const card = await db.getCardBySlug(params.cardSlug);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const cardSlug = params.cardSlug as string;
-        const response = await fetch(`/api/cards/${cardSlug}`);
-        
-        if (!response.ok) {
-          throw new Error('Profile not found');
-        }
-
-        const data = await response.json();
-        setProfile(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
-      }
+  if (!card) {
+    return {
+      title: 'Carte non trouvée',
+      description: 'Cette carte de visite n\'existe pas.',
     };
-
-    fetchProfile();
-  }, [params.cardSlug]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white">Chargement...</div>
-      </div>
-    );
   }
 
-  if (error || !profile) {
+  if (!card.isConfigured) {
+    return {
+      title: 'Carte non configurée',
+      description: 'Cette carte de visite n\'est pas encore configurée.',
+    };
+  }
+
+  return {
+    title: `${card.fullName} - Carte de visite numérique`,
+    description: card.bio || `${card.jobTitle} chez ${card.company}`,
+    openGraph: {
+      title: card.fullName,
+      description: card.bio || `${card.jobTitle}`,
+      type: 'website',
+      images: card.profileImage ? [{ url: card.profileImage }] : [],
+    },
+  };
+}
+
+/**
+ * Page publique d'affichage de la carte
+ */
+export default async function CardPage({ params }: PageProps) {
+  try {
+    const card = await db.getCardBySlug(params.cardSlug);
+
+    // Carte non trouvée
+    if (!card) {
+      notFound();
+    }
+
+    // Carte non configurée - redirection vers la page admin si l'utilisateur est propriétaire
+    if (!card.isConfigured) {
+      // Optionnel: rediriger vers le dashboard avec un message
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Carte non configurée
+            </h1>
+            <p className="text-gray-600 mb-6">
+              Cette carte de visite n'a pas encore été configurée par son propriétaire.
+            </p>
+            <a
+              href="/login"
+              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
+            >
+              Se connecter
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    // Formater et afficher la carte
+    const formattedCard = formatCardDisplay(card);
+
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white text-center">
-          <h1 className="text-2xl font-bold mb-2">Card not found</h1>
-          <p className="text-slate-400">{error || 'The profile you are looking for does not exist'}</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4">
+        <div className="max-w-2xl mx-auto">
+          <ProfileCardDisplay card={formattedCard} />
+
+          {/* Pied de page */}
+          <div className="text-center mt-8 text-sm text-gray-600">
+            <p>Carte de visite numérique créée avec TAPAM Card</p>
+            <a href="/" className="text-blue-600 hover:text-blue-700 font-semibold">
+              En créer une pour vous
+            </a>
+          </div>
         </div>
       </div>
     );
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la carte:', error);
+    notFound();
   }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <div className="max-w-md mx-auto p-4 pt-8">
-        {/* Header avec logo TAPAM CARD */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-3xl font-bold text-white tracking-wide">TAPAM</span>
-            <div className="w-6 h-6 bg-yellow-400 rounded-full"></div>
-          </div>
-          <p className="text-slate-300 text-sm italic">CARD</p>
-        </div>
-
-        {/* Card principale */}
-        <ProfileCard profile={profile} />
-
-        {/* Boutons personnalisés */}
-        {profile.customButtons && profile.customButtons.length > 0 && (
-          <div className="mt-6 space-y-3">
-            {profile.customButtons
-              .sort((a, b) => a.order - b.order)
-              .map((button) => (
-                <a
-                  key={button.id}
-                  href={button.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full py-3 px-4 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-lg transition text-center"
-                >
-                  {button.label}
-                </a>
-              ))}
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-slate-400 text-xs">
-          <p>© 2024 TAPAM Card. All rights reserved.</p>
-        </div>
-      </div>
-    </div>
-  );
 }
