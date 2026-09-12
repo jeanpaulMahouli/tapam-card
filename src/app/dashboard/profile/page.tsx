@@ -1,153 +1,185 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CustomButtonsManager } from '@/components/CustomButtonsManager';
+import { getSession } from '@/lib/auth';
+import { db } from '@/lib/database';
+import { ProfileFormEditor } from '@/components/ProfileFormEditor';
+import { ProfileCardDisplay } from '@/components/ProfileCardDisplay';
+import { formatCardDisplay, CardFormData, CardDisplayData } from '@/lib/card-utils';
 
-interface Profile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  title: string;
-  subtitle: string;
-  bio: string;
-  email: string;
-  phone: string;
-  website: string;
-  linkedin: string;
-  facebook: string;
-  instagram: string;
-  twitter: string;
-  tiktok: string;
-  snapchat: string;
-  youtube: string;
-  whatsapp: string;
-  profileImage: string;
-  cardSlug: string;
-}
-
+/**
+ * Page de gestion du profil utilisateur
+ */
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [card, setCard] = useState<CardDisplayData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
+    loadCard();
+  }, []);
 
-    if (status === 'authenticated') {
-      fetchProfile();
-    }
-  }, [status, router]);
-
-  const fetchProfile = async () => {
+  /**
+   * Charger la carte de l'utilisateur
+   */
+  const loadCard = async () => {
     try {
-      const response = await fetch('/api/profile');
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
+      setIsLoading(true);
+      const session = await getSession();
+
+      if (!session?.user?.id) {
+        router.push('/login');
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+
+      const userData = await db.getUserWithCard(session.user.id);
+      if (!userData?.card) {
+        setError('Aucune carte trouvée');
+        return;
+      }
+
+      setCard(formatCardDisplay(userData.card));
+    } catch (err) {
+      setError('Erreur lors du chargement de la carte');
+      console.error(err);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-8">Chargement...</div>;
+  /**
+   * Sauvegarder les modifications de la carte
+   */
+  const handleSaveProfile = async (formData: CardFormData) => {
+    if (!card) return;
+
+    try {
+      setIsSaving(true);
+
+      const response = await fetch(`/api/cards/${card.id}/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || 'Erreur lors de la sauvegarde'
+        );
+      }
+
+      const updatedCard = await response.json();
+      setCard(formatCardDisplay(updatedCard));
+    } catch (err) {
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Chargement...</p>
+      </div>
+    );
   }
 
-  if (!profile) {
-    return <div className="p-8">Profil non trouvé</div>;
+  if (error && !card) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg"
+          >
+            Retour au tableau de bord
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!card) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Aucune carte trouvée</p>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Gérer mon profil</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-bold text-gray-900 mb-12">
+          Gérer mon profil
+        </h1>
 
-      <Tabs defaultValue="info" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="info">Informations</TabsTrigger>
-          <TabsTrigger value="socials">Réseaux</TabsTrigger>
-          <TabsTrigger value="buttons">Boutons</TabsTrigger>
-        </TabsList>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Formulaire d'édition */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Éditer mes informations
+            </h2>
+            <ProfileFormEditor
+              cardId={card.id}
+              initialData={{
+                fullName: card.fullName,
+                jobTitle: card.jobTitle,
+                company: card.company,
+                phone: card.phone,
+                email: card.email,
+                bio: card.bio,
+                location: card.location,
+                website: card.website,
+                theme: card.theme,
+              }}
+              onSubmit={handleSaveProfile}
+              isLoading={isSaving}
+            />
+          </div>
 
-        {/* Onglet Informations */}
-        <TabsContent value="info" className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-            <h2 className="text-xl font-semibold mb-4">Informations de base</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Les modifications sont automatiquement sauvegardées.
-            </p>
-            {/* Ici vous pouvez ajouter les formulaires pour éditer les infos de base */}
-            <div className="space-y-4">
-              <div>
-                <label className="block font-medium mb-2">Prénom</label>
-                <p className="text-slate-700 dark:text-slate-300">{profile.firstName}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Nom</label>
-                <p className="text-slate-700 dark:text-slate-300">{profile.lastName}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Titre</label>
-                <p className="text-slate-700 dark:text-slate-300">{profile.title}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Sous-titre</label>
-                <p className="text-slate-700 dark:text-slate-300">{profile.subtitle}</p>
-              </div>
+          {/* Aperçu en direct */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Aperçu en direct
+            </h2>
+            <ProfileCardDisplay card={card} />
+
+            {/* Lien public */}
+            <div className="mt-6 bg-white rounded-lg shadow p-6 text-center">
+              <p className="text-sm text-gray-600 mb-2">Votre URL publique:</p>
+              <a
+                href={`/p/${card.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-semibold break-all"
+              >
+                {typeof window !== 'undefined' && 
+                  `${window.location.origin}/p/${card.slug}`}
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}/p/${card.slug}`
+                  );
+                  alert('Lien copié!');
+                }}
+                className="mt-3 block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
+              >
+                📋 Copier le lien
+              </button>
             </div>
           </div>
-        </TabsContent>
-
-        {/* Onglet Réseaux sociaux */}
-        <TabsContent value="socials" className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-            <h2 className="text-xl font-semibold mb-4">Réseaux sociaux</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              Liez vos comptes de réseaux sociaux pour les afficher sur votre carte.
-            </p>
-            {/* Ici vous pouvez ajouter les formulaires pour éditer les réseaux sociaux */}
-            <div className="space-y-4">
-              <div>
-                <label className="block font-medium mb-2">LinkedIn</label>
-                <p className="text-slate-700 dark:text-slate-300 truncate">{profile.linkedin || 'Non renseigné'}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Instagram</label>
-                <p className="text-slate-700 dark:text-slate-300 truncate">{profile.instagram || 'Non renseigné'}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Facebook</label>
-                <p className="text-slate-700 dark:text-slate-300 truncate">{profile.facebook || 'Non renseigné'}</p>
-              </div>
-              <div>
-                <label className="block font-medium mb-2">Twitter/X</label>
-                <p className="text-slate-700 dark:text-slate-300 truncate">{profile.twitter || 'Non renseigné'}</p>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* Onglet Boutons personnalisés */}
-        <TabsContent value="buttons" className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-            <h2 className="text-xl font-semibold mb-4">Boutons personnalisés</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
-              Ajoutez vos propres boutons d'action sur votre carte digitale. Vous pouvez rediriger vers votre site web,
-              un formulaire de contact, un calendrier de rendez-vous, etc.
-            </p>
-            <CustomButtonsManager profileId={profile.id} />
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
